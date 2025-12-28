@@ -162,14 +162,14 @@ function mapTmdbToMovie(details, credits) {
         name: genre.name ?? null,
       }))
     ),
-    vote_average: details.vote_average,
-    vote_count: details.vote_count,
+    voteAverage: details.vote_average,
+    voteCount: details.vote_count,
     crew: ensureArray(directorsList),
     cast: ensureArray(
       castSorted.map((member) => ({
         name: member.name,
         order: typeof member.order === "number" ? member.order : null,
-        profile_path: member.profile_path ?? null,
+        profilePath: member.profile_path ?? null,
       }))
     ),
   };
@@ -237,16 +237,15 @@ export async function handleMovieLookup(request, env) {
     moviePayload.title = first.title || strippedTitle;
   }
 
-  const responsePayload = { ...moviePayload, channelId };
   try {
     const ttl = CACHE_TTL_SECONDS;
-    await redis.set(cacheKey, responsePayload, ttl);
+    await redis.set(cacheKey, moviePayload, ttl);
     logger.info("redis <- cached (movie lookup)", { key: cacheKey, ttl });
   } catch (e) {
     logger.warn("redis set failed", e?.message ?? e);
   }
 
-  return jsonResponse(responsePayload);
+  return jsonResponse(moviePayload);
 }
 
 export async function handleMovieById(request, env, ctx) {

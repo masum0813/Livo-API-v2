@@ -76,9 +76,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: |
-            docker-compose.yml
-            scripts/deploy.sh
+          source: "docker-compose.yml,scripts/deploy.sh"
           target: /${{ secrets.SSH_USER }}/works/api
 
       - name: SSH deploy - run deploy script (pull image & restart)
