@@ -149,7 +149,7 @@ app.use(async (req, res) => {
       response = withCors(await handleMovieLookup(request, env));
     } else if (url.pathname.startsWith("/v1/movie/")) {
       response = withCors(await handleMovieLookup(request, env, ctx));
-    } else if (url.pathname.match(/^\/v1\/movie\/\d+\/\d+$/)) {
+    } else if (url.pathname.startsWith("/movies/id/")) {
       response = withCors(await handleMovieById(request, env));
     } else if (url.pathname === "/v1/stream-url") {
       response = withCors(await handleStreamUrl(request, env));

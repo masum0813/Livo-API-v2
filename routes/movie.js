@@ -330,7 +330,7 @@ export async function handleMovieLookup(request, env) {
 
 export async function handleMovieById(request, env, ctx) {
   const url = new URL(request.url);
-  console.log("request received: /v1/movie/{id}", url.toString());
+  console.log("request received: /movies/{id}", url.toString());
   const idPart = url.pathname.split("/").pop();
   const movieId = Number(idPart);
   if (!Number.isInteger(movieId)) {
