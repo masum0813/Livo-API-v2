@@ -10,6 +10,8 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ${{ secrets.IMAGE_NAME || 'ghcr.io/' + github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,13 +34,15 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}
-            ${{ secrets.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}
+            ${{ env.IMAGE_NAME }}:latest
           file: ./Dockerfile
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ${{ secrets.IMAGE_NAME || 'ghcr.io/' + github.repository }}
     steps:
       - name: Wait for image available
         run: |
@@ -66,4 +70,4 @@ jobs:
             cd /home/${{ secrets.SSH_USER }}/app
             chmod +x ./deploy.sh
             # Call deploy script with IMAGE and TAG (tag includes build number)
-            ./deploy.sh "${{ secrets.IMAGE_NAME }}" "${{ github.ref_name }}-${{ github.run_number }}" /home/${{ secrets.SSH_USER }}/app
+            ./deploy.sh "${{ env.IMAGE_NAME }}" "${{ github.ref_name }}-${{ github.run_number }}" /home/${{ secrets.SSH_USER }}/app
