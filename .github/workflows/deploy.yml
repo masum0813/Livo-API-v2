@@ -54,11 +54,11 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: ${{ secrets.IMAGE_NAME || format('ghcr.io/{0}', github.repository) }}
+      IMAGE_NAME: ${{ vars.IMAGE_NAME || format('ghcr.io/{0}', github.repository) }}
     steps:
       - name: Wait for image available
         run: |
-          echo "Image built: ${{ secrets.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}"
+          echo "Image built: ${{ vars.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}"
 
       - name: Copy docker-compose and deploy script to server
         uses: appleboy/scp-action@v0.1.6
