@@ -15,6 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve IMAGE_NAME
+        run: |
+          if [ -n "${{ vars.IMAGE_NAME }}" ]; then
+            if [[ "${{ vars.IMAGE_NAME }}" == */* ]]; then
+              echo "IMAGE_NAME=${{ vars.IMAGE_NAME }}" >> $GITHUB_ENV
+            else
+              echo "IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/${{ vars.IMAGE_NAME }}" >> $GITHUB_ENV
+            fi
+          else
+            echo "IMAGE_NAME=ghcr.io/${{ github.repository }}" >> $GITHUB_ENV
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
