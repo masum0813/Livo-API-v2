@@ -1,5 +1,5 @@
-import { jsonResponse, errorResponse } from "../lib/response.js";
 import { buildCacheKeyFromUrl, cacheGet, cacheSet } from "../lib/cache.js";
+import { errorResponse, jsonResponse } from "../lib/response.js";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const CACHE_INTERVAL_SECONDS = 30 * 24 * 60 * 60;
@@ -7,6 +7,17 @@ const MAX_CAST = 10;
 
 function normalizeLanguage(raw) {
   return raw ? raw.trim() : "";
+}
+
+function safeDecode(value) {
+  if (!value || typeof value !== "string") return value;
+  try {
+    // Only decode if there is a percent-encoded sequence
+    if (/%[0-9A-Fa-f]{2}/.test(value)) return decodeURIComponent(value);
+    return value;
+  } catch (e) {
+    return value;
+  }
 }
 
 function extractYear(title) {
@@ -104,7 +115,7 @@ async function cachePut(request, response, ctx) {
 export async function handleSearch(request, env, ctx) {
   const url = new URL(request.url);
   console.log("request received: /v1/search", url.toString());
-  const query = url.searchParams.get("query");
+  const query = safeDecode(url.searchParams.get("query"));
   if (!query) {
     return errorResponse(400, "query is required");
   }
@@ -112,7 +123,10 @@ export async function handleSearch(request, env, ctx) {
   try {
     const cached = await cacheGet(env, cacheKey);
     if (cached) {
-      console.log("redis -> responded (search)", { key: cacheKey, url: url.toString() });
+      console.log("redis -> responded (search)", {
+        key: cacheKey,
+        url: url.toString(),
+      });
       return jsonResponse(cached);
     }
   } catch (e) {
@@ -132,7 +146,9 @@ export async function handleSearch(request, env, ctx) {
   console.log("tmdb -> responded (search)", { query, language });
   const response = jsonResponse(data);
   try {
-    const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30);
+    const ttl = Number(
+      env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30
+    );
     await cacheSet(env, cacheKey, data, ttl);
     console.log("redis <- cached (search)", { key: cacheKey, ttl });
   } catch (e) {
@@ -253,7 +269,7 @@ async function fetchMovieDetails(movieId, language, env) {
 }
 
 export async function handleMovieLookup(request, env) {
-  const url = new URL(request.url);
+  const url = new URL(safeDecode(request.url));
   console.log("request received: /v1/movie/lookup", url.toString());
   const channelId = url.searchParams.get("channelId");
   const title = url.searchParams.get("title");
@@ -286,7 +302,11 @@ export async function handleMovieLookup(request, env) {
     },
     env
   );
-  console.log("tmdb -> search for lookup", { strippedTitle, releaseYear, language });
+  console.log("tmdb -> search for lookup", {
+    strippedTitle,
+    releaseYear,
+    language,
+  });
   const first = search.results?.[0];
   if (!first) {
     return errorResponse(404, "TMDB movie not found");
@@ -298,7 +318,11 @@ export async function handleMovieLookup(request, env) {
   }
 
   await upsertMovieByChannel(env, channelId, language, moviePayload);
-  console.log("db <- upserted (lookup)", { channelId, language, movieId: moviePayload.movieId });
+  console.log("db <- upserted (lookup)", {
+    channelId,
+    language,
+    movieId: moviePayload.movieId,
+  });
   await upsertMovieById(env, language, moviePayload);
 
   return jsonResponse({ ...moviePayload, channelId });
@@ -328,7 +352,10 @@ export async function handleMovieById(request, env, ctx) {
   try {
     const cached = await cacheGet(env, cacheKey);
     if (cached) {
-      console.log("redis -> responded (movie)", { key: cacheKey, url: url.toString() });
+      console.log("redis -> responded (movie)", {
+        key: cacheKey,
+        url: url.toString(),
+      });
       return jsonResponse(cached);
     }
   } catch (e) {
@@ -340,7 +367,9 @@ export async function handleMovieById(request, env, ctx) {
 
   const response = jsonResponse(moviePayload);
   try {
-    const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30);
+    const ttl = Number(
+      env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30
+    );
     await cacheSet(env, cacheKey, moviePayload, ttl);
     console.log("redis <- cached (movie)", { key: cacheKey, ttl });
   } catch (e) {

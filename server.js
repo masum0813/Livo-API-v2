@@ -1,21 +1,21 @@
+import dotenv from "dotenv";
 import express from "express";
+import { getRedisClient } from "./lib/cache.js";
+import { createDbShim } from "./lib/db_shim.js";
+import { errorResponse, jsonResponse } from "./lib/response.js";
 import {
   handleMovieById,
   handleMovieLookup,
   handleSearch,
 } from "./routes/movie.js";
-import { handleTmdbProxy } from "./routes/tmdb_proxy.js";
-import { handleStreamUrl } from "./routes/stream.js";
 import {
   handleSeriesById,
-  handleSeriesSearch,
   handleSeriesEpisode,
+  handleSeriesSearch,
   handleSeriesSeason,
 } from "./routes/series.js";
-import { getRedisClient } from "./lib/cache.js";
-import { createDbShim } from "./lib/db_shim.js";
-import { jsonResponse, errorResponse } from "./lib/response.js";
-import dotenv from "dotenv";
+import { handleStreamUrl } from "./routes/stream.js";
+import { handleTmdbProxy } from "./routes/tmdb_proxy.js";
 
 dotenv.config();
 
@@ -40,7 +40,9 @@ const env = {
   STREAM_FORWARD_HEADERS: process.env.STREAM_FORWARD_HEADERS,
   FORWARD_HEADERS: process.env.FORWARD_HEADERS,
   REDIS_URL: process.env.REDIS_URL,
-  TMDB_CACHE_SECONDS: Number(process.env.TMDB_CACHE_SECONDS || 24 * 60 * 60 * 30),
+  TMDB_CACHE_SECONDS: Number(
+    process.env.TMDB_CACHE_SECONDS || 24 * 60 * 60 * 30
+  ),
 };
 
 // If a real env.DB is not provided (sqlite removed), provide a Redis-backed shim
@@ -60,12 +62,14 @@ async function ensureRedisReady(env) {
   const waitSeconds = Number(process.env.REDIS_WAIT_SECONDS || 60);
   const intervalMs = Number(process.env.REDIS_WAIT_INTERVAL_MS || 500);
   const deadline = Date.now() + waitSeconds * 1000;
-  console.log(`Waiting for redis at ${env.REDIS_URL || 'local'} (timeout ${waitSeconds}s)`);
+  console.log(
+    `Waiting for redis at ${env.REDIS_URL || "local"} (timeout ${waitSeconds}s)`
+  );
   while (Date.now() < deadline) {
     try {
       const res = await client.ping();
-      if (res === 'PONG' || res === 'pong') {
-        console.log('Redis is ready');
+      if (res === "PONG" || res === "pong") {
+        console.log("Redis is ready");
         return true;
       }
     } catch (err) {
@@ -80,7 +84,8 @@ function makeCtx() {
   return {
     waitUntil(promise) {
       try {
-        if (promise && typeof promise.then === "function") promise.catch(() => {});
+        if (promise && typeof promise.then === "function")
+          promise.catch(() => {});
       } catch (e) {}
     },
   };
@@ -143,15 +148,22 @@ app.use(async (req, res) => {
       // Support requests like /v1/movie?title=...&channelId=...
       response = withCors(await handleMovieLookup(request, env));
     } else if (url.pathname.startsWith("/v1/movie/")) {
-      response = withCors(await handleMovieById(request, env, ctx));
+      response = withCors(await handleMovieLookup(request, env, ctx));
+    } else if (url.pathname.match(/^\/v1\/movie\/\d+\/\d+$/)) {
+      response = withCors(await handleMovieById(request, env));
     } else if (url.pathname === "/v1/stream-url") {
       response = withCors(await handleStreamUrl(request, env));
     } else if (url.pathname === "/v1/series/search") {
       response = withCors(await handleSeriesSearch(request, env));
-    } else if (url.pathname === "/v1/series" || url.pathname === "/v1/series/") {
+    } else if (
+      url.pathname === "/v1/series" ||
+      url.pathname === "/v1/series/"
+    ) {
       // Support requests like /v1/series?title=...&channelId=...
       response = withCors(await handleSeriesSearch(request, env));
-    } else if (url.pathname.match(/^\/v1\/series\/\d+\/season\/\d+\/episode\/\d+$/)) {
+    } else if (
+      url.pathname.match(/^\/v1\/series\/\d+\/season\/\d+\/episode\/\d+$/)
+    ) {
       response = withCors(await handleSeriesEpisode(request, env));
     } else if (url.pathname.match(/^\/v1\/series\/\d+\/season\/\d+$/)) {
       response = withCors(await handleSeriesSeason(request, env));
@@ -173,7 +185,9 @@ app.use(async (req, res) => {
     res.send(body);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    res
+      .status(500)
+      .json({ error: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -188,7 +202,7 @@ const PORT = process.env.PORT || 3000;
       console.log(`API server listening on port ${PORT}`);
     });
   } catch (err) {
-    console.error('Failed to start server:', err?.message ?? err);
+    console.error("Failed to start server:", err?.message ?? err);
     process.exit(1);
   }
 })();

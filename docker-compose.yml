@@ -34,7 +34,8 @@ services:
         port=$${hostport#*:}
         if [ "$$port" = "$$host" ] || [ -z "$$port" ]; then port=6379; fi
         echo "Waiting for redis at $$host:$$port (from $$REDIS_URL)"
-        until bash -c "cat < /dev/tcp/$$host/$$port" >/dev/null 2>&1; do sleep 1; done
+        # Use a non-blocking test to open TCP socket and exit immediately
+        until bash -c "echo > /dev/tcp/$$host/$$port" >/dev/null 2>&1; do sleep 1; done
         echo "Redis reachable at $$host:$$port, starting app"
         exec npm start
     restart: unless-stopped
@@ -43,7 +44,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: livo_redis
+    container_name: redis
     ports:
       - "6379:6379"
     volumes:
