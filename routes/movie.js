@@ -164,7 +164,7 @@ function mapTmdbToMovie(details, credits) {
     ),
     vote_average: details.vote_average,
     vote_count: details.vote_count,
-    directors: ensureArray(directorsList),
+    crew: ensureArray(directorsList),
     cast: ensureArray(
       castSorted.map((member) => ({
         name: member.name,
