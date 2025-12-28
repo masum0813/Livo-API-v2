@@ -14,6 +14,18 @@ fi
 echo "Deploying $IMAGE:$TAG to $APP_DIR"
 cd "$APP_DIR"
 
+# Update .env IMAGE_TAG if present (or append) so server-side compose/template sees new tag
+ENV_FILE="$APP_DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+  echo "Updating $ENV_FILE with IMAGE_TAG=$TAG"
+  tmpfile=$(mktemp)
+  awk -v tag="$TAG" 'BEGIN{FS=OFS="="} /^IMAGE_TAG=/{print "IMAGE_TAG",tag; next} {print}' "$ENV_FILE" > "$tmpfile" && mv "$tmpfile" "$ENV_FILE"
+else
+  echo "No .env found at $ENV_FILE, creating with IMAGE_TAG=$TAG"
+  echo "IMAGE_TAG=$TAG" > "$ENV_FILE"
+fi
+
+
 # If image is private, ensure the server has already logged into the registry (docker login ghcr.io)
 # Pull the specific image tag, then restart the compose stack
 echo "Pulling image $IMAGE:$TAG"

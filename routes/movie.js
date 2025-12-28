@@ -68,19 +68,6 @@ function ensureArray(v) {
   return [v];
 }
 
-function shouldRefresh(row) {
-  if (!row) {
-    return true;
-  }
-  const rating = row.rating ?? 0;
-  const ratingCount = row.rating_count ?? 0;
-  if (rating === 0 && ratingCount === 0) {
-    return true;
-  }
-  const ageSeconds = Math.floor(Date.now() / 1000) - row.updated_at;
-  return ageSeconds > CACHE_INTERVAL_SECONDS;
-}
-
 async function tmdbFetch(path, query, env) {
   if (!env.TMDB_API_KEY) {
     throw new Error("TMDB_API_KEY is missing");
@@ -156,9 +143,9 @@ export async function handleSearch(request, env, ctx) {
 }
 
 function mapTmdbToMovie(details, credits) {
-  const director = credits.crew?.find(
-    (member) => String(member.job || "").toLowerCase() === "director"
-  );
+  const directorsList = (credits.crew || [])
+    .filter((member) => String(member.job || "").toLowerCase() === "director")
+    .map((member) => ({ name: member.name ?? null, job: member.job ?? null }));
   const castSorted = (credits.cast || [])
     .slice()
     .sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999))
@@ -175,9 +162,9 @@ function mapTmdbToMovie(details, credits) {
         name: genre.name ?? null,
       }))
     ),
-    rating: details.vote_average,
-    ratingCount: details.vote_count,
-    directorName: director?.name ?? null,
+    vote_average: details.vote_average,
+    vote_count: details.vote_count,
+    directors: ensureArray(directorsList),
     cast: ensureArray(
       castSorted.map((member) => ({
         name: member.name,

@@ -84,7 +84,7 @@ jobs:
           source: |
             docker-compose.yml
             scripts/deploy.sh
-          target: /home/${{ secrets.SSH_USER }}/app/
+          target: /${{ secrets.SSH_USER }}/works/api
 
       - name: SSH deploy - run deploy script (pull image & restart)
         uses: appleboy/ssh-action@v0.1.7
@@ -94,7 +94,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -euo pipefail
-            cd /home/${{ secrets.SSH_USER }}/app
+            cd /${{ secrets.SSH_USER }}/works/api
             chmod +x ./deploy.sh
             # Call deploy script with IMAGE and TAG (tag includes build number)
-            ./deploy.sh "${{ env.IMAGE_NAME }}" "${{ github.ref_name }}-${{ github.run_number }}" /home/${{ secrets.SSH_USER }}/app
+            ./deploy.sh "${{ env.IMAGE_NAME }}" "${{ github.ref_name }}-${{ github.run_number }}" /${{ secrets.SSH_USER }}/works/api/docker-compose.yml
