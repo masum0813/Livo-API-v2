@@ -175,47 +175,6 @@ export async function handleSearch(request, env, ctx) {
   return response;
 }
 
-async function upsertMovieByChannel(env, channelId, language, payload) {
-  const now = Math.floor(Date.now() / 1000);
-  const stmt = env.DB.prepare(
-    `INSERT INTO movies_by_channel (
-      channel_id, language, tmdb_id, title, overview, release_date, poster_path,
-      genres, rating, rating_count, director_name, cast_names, cast_profile_paths, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(channel_id, language) DO UPDATE SET
-      tmdb_id = excluded.tmdb_id,
-      title = excluded.title,
-      overview = excluded.overview,
-      release_date = excluded.release_date,
-      poster_path = excluded.poster_path,
-      genres = excluded.genres,
-      rating = excluded.rating,
-      rating_count = excluded.rating_count,
-      director_name = excluded.director_name,
-      cast_names = excluded.cast_names,
-      cast_profile_paths = excluded.cast_profile_paths,
-      updated_at = excluded.updated_at`
-  );
-  await stmt
-    .bind(
-      channelId,
-      language,
-      payload.movieId,
-      payload.title,
-      payload.overview,
-      payload.releaseDate,
-      payload.posterPath,
-      JSON.stringify(payload.genres || []),
-      payload.rating ?? 0,
-      payload.ratingCount ?? 0,
-      payload.directorName,
-      JSON.stringify(payload.cast || []),
-      JSON.stringify(payload.castProfilePaths || []),
-      now
-    )
-    .run();
-}
-
 function mapTmdbToMovie(details, credits) {
   const director = credits.crew?.find(
     (member) => String(member.job || "").toLowerCase() === "director"
@@ -234,9 +193,12 @@ function mapTmdbToMovie(details, credits) {
     rating: details.vote_average,
     ratingCount: details.vote_count,
     directorName: director?.name ?? null,
-    cast: ensureArray(castSorted.map((member) => member.name)),
-    castProfilePaths: ensureArray(
-      castSorted.map((member) => member.profile_path ?? null)
+    cast: ensureArray(
+      castSorted.map((member) => ({
+        name: member.name,
+        order: typeof member.order === "number" ? member.order : null,
+        profile_path: member.profile_path ?? null,
+      }))
     ),
   };
 }
