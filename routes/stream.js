@@ -1,4 +1,5 @@
 import { errorResponse, jsonResponse } from "../lib/response.js";
+import { logger } from "../lib/logger.js";
 
 const DEFAULT_TTL_SECONDS = 300;
 
@@ -35,7 +36,7 @@ export async function handleStreamUrl(request, env) {
     return errorResponse(405, "method not allowed");
   }
 
-  console.log("stream-url-request", {
+  logger.info("stream-url-request", {
     method: request.method,
     path: url.pathname,
     headers: redactHeadersForLog(request.headers),
@@ -136,7 +137,7 @@ async function resolveFinalUpstreamUrl(initialUpstreamUrl, forwardedHeadersPaylo
     // `resp.url` is the final URL after redirects.
     return resp?.url ? new URL(resp.url) : initialUpstreamUrl;
   } catch (error) {
-    console.warn(
+    logger.warn(
       "upstream-resolve-failed",
       error instanceof Error ? error.message : String(error)
     );

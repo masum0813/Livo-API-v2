@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import express from "express";
+import { logger } from "./lib/logger.js";
 import { getRedisClient } from "./lib/cache.js";
 import { createDbShim } from "./lib/db_shim.js";
 import { errorResponse, jsonResponse } from "./lib/response.js";
@@ -62,14 +63,12 @@ async function ensureRedisReady(env) {
   const waitSeconds = Number(process.env.REDIS_WAIT_SECONDS || 60);
   const intervalMs = Number(process.env.REDIS_WAIT_INTERVAL_MS || 500);
   const deadline = Date.now() + waitSeconds * 1000;
-  console.log(
-    `Waiting for redis at ${env.REDIS_URL || "local"} (timeout ${waitSeconds}s)`
-  );
+  logger.info(`Waiting for redis at ${env.REDIS_URL || "local"} (timeout ${waitSeconds}s)`);
   while (Date.now() < deadline) {
     try {
       const res = await client.ping();
-      if (res === "PONG" || res === "pong") {
-        console.log("Redis is ready");
+        if (res === "PONG" || res === "pong") {
+        logger.info("Redis is ready");
         return true;
       }
     } catch (err) {
@@ -199,7 +198,7 @@ const PORT = process.env.PORT || 3000;
       await ensureRedisReady(env);
     }
     app.listen(PORT, () => {
-      console.log(`API server listening on port ${PORT}`);
+      logger.info(`API server listening on port ${PORT}`);
     });
   } catch (err) {
     console.error("Failed to start server:", err?.message ?? err);

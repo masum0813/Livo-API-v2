@@ -1,6 +1,8 @@
-import { buildCacheKeyFromUrl, cacheGet, cacheSet } from "../lib/cache.js";
+import { buildCacheKeyFromUrl } from "../lib/cache.js";
 import { logger } from "../lib/logger.js";
 import { errorResponse, jsonResponse } from "../lib/response.js";
+import { RedisClient } from "../lib/redisClient.js";
+import { CACHE_TTL_SECONDS } from "../lib/config.js";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const CACHE_INTERVAL_SECONDS = 30 * 24 * 60 * 60;
@@ -138,8 +140,9 @@ export async function handleSearch(request, env, ctx) {
     return errorResponse(400, "query is required");
   }
   const cacheKey = buildCacheKeyFromUrl(url);
+  const redis = new RedisClient(env);
   try {
-    const cached = await cacheGet(env, cacheKey);
+    const cached = await redis.get(cacheKey);
     if (cached) {
       logger.info("redis -> responded (search)", {
         key: cacheKey,
@@ -164,13 +167,11 @@ export async function handleSearch(request, env, ctx) {
   logger.info("tmdb -> responded (search)", { query, language });
   const response = jsonResponse(data);
   try {
-    const ttl = Number(
-      env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30
-    );
-    await cacheSet(env, cacheKey, data, ttl);
+    const ttl = CACHE_TTL_SECONDS;
+    await redis.set(cacheKey, data, ttl);
     logger.info("redis <- cached (search)", { key: cacheKey, ttl });
   } catch (e) {
-    console.warn("redis set failed", e?.message ?? e);
+    logger.warn("redis set failed", e?.message ?? e);
   }
   return response;
 }
@@ -213,7 +214,7 @@ async function fetchMovieDetails(movieId, language, env) {
 
 export async function handleMovieLookup(request, env) {
   const url = new URL(safeDecode(request.url));
-  console.log("request received: /v1/movie/lookup", url.toString());
+  logger.info("request received: /v1/movie/lookup", { url: url.toString() });
   const channelId = url.searchParams.get("channelId");
   const title = url.searchParams.get("title");
   const language = normalizeLanguage(url.searchParams.get("language"));
@@ -221,14 +222,19 @@ export async function handleMovieLookup(request, env) {
     return errorResponse(400, "channelId and title are required");
   }
 
-  const cachedRow = await env.DB.prepare(
-    `SELECT * FROM movies_by_channel WHERE channel_id = ? AND language = ? LIMIT 1`
-  )
-    .bind(channelId, language)
-    .first();
-  if (cachedRow && !shouldRefresh(cachedRow)) {
-    logger.info("db -> responded (lookup)", { channelId, language });
-    return jsonResponse(rowToMovie(cachedRow, channelId));
+  const cacheKey = buildCacheKeyFromUrl(url);
+  const redis = new RedisClient(env);
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      logger.info("redis -> responded (movie lookup)", {
+        key: cacheKey,
+        url: url.toString(),
+      });
+      return jsonResponse(cached);
+    }
+  } catch (e) {
+    logger.warn("redis get failed", e?.message ?? e);
   }
 
   const cleanTitle = title.trim();
@@ -260,7 +266,16 @@ export async function handleMovieLookup(request, env) {
     moviePayload.title = first.title || strippedTitle;
   }
 
-  return jsonResponse({ ...moviePayload, channelId });
+  const responsePayload = { ...moviePayload, channelId };
+  try {
+    const ttl = CACHE_TTL_SECONDS;
+    await redis.set(cacheKey, responsePayload, ttl);
+    logger.info("redis <- cached (movie lookup)", { key: cacheKey, ttl });
+  } catch (e) {
+    logger.warn("redis set failed", e?.message ?? e);
+  }
+
+  return jsonResponse(responsePayload);
 }
 
 export async function handleMovieById(request, env, ctx) {
@@ -274,8 +289,9 @@ export async function handleMovieById(request, env, ctx) {
   const language = normalizeLanguage(url.searchParams.get("language"));
 
   const cacheKey = buildCacheKeyFromUrl(url);
+  const redis = new RedisClient(env);
   try {
-    const cached = await cacheGet(env, cacheKey);
+    const cached = await redis.get(cacheKey);
     if (cached) {
       logger.info("redis -> responded (movie)", {
         key: cacheKey,
@@ -291,10 +307,8 @@ export async function handleMovieById(request, env, ctx) {
 
   const response = jsonResponse(moviePayload);
   try {
-    const ttl = Number(
-      env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30
-    );
-    await cacheSet(env, cacheKey, moviePayload, ttl);
+    const ttl = CACHE_TTL_SECONDS;
+    await redis.set(cacheKey, moviePayload, ttl);
     logger.info("redis <- cached (movie)", { key: cacheKey, ttl });
   } catch (e) {
     logger.warn("redis set failed", e?.message ?? e);
