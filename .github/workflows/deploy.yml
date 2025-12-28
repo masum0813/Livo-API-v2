@@ -2,7 +2,7 @@ name: CI/CD - build and deploy (tag-triggered)
 on:
   push:
     # Trigger only when a tag starting with `v` is pushed (e.g. v1.2.3)
-    tags: [ 'v*' ]
+    tags: ["v*"]
 permissions:
   contents: read
   packages: write
@@ -41,7 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wait for image available
-        run: echo "Image built: ${{ secrets.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}"
+        run: |
+          echo "Image built: ${{ secrets.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}"
 
       - name: Copy docker-compose and deploy script to server
         uses: appleboy/scp-action@v0.1.6
