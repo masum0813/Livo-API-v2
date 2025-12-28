@@ -260,13 +260,6 @@ export async function handleMovieLookup(request, env) {
     moviePayload.title = first.title || strippedTitle;
   }
 
-  await upsertMovieByChannel(env, channelId, language, moviePayload);
-  logger.info("db <- upserted (lookup)", {
-    channelId,
-    language,
-    movieId: moviePayload.movieId,
-  });
-
   return jsonResponse({ ...moviePayload, channelId });
 }
 
