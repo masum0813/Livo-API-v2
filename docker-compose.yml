@@ -1,8 +1,9 @@
 services:
   api:
     container_name: api
-    image: tmdb-api-server
-    build: .
+    # Use IMAGE_NAME and IMAGE_TAG to pull from a registry (GHCR).
+    # IMAGE_NAME must be set in server .env (no default).
+    image: ${IMAGE_NAME}:${IMAGE_TAG:-latest}
     ports:
       - "3000:3000"
     environment:
