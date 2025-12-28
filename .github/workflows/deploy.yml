@@ -11,7 +11,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: ${{ secrets.IMAGE_NAME || 'ghcr.io/' + github.repository }}
+      IMAGE_NAME: ${{ secrets.IMAGE_NAME || format('ghcr.io/{0}', github.repository) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +42,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: ${{ secrets.IMAGE_NAME || 'ghcr.io/' + github.repository }}
+      IMAGE_NAME: ${{ secrets.IMAGE_NAME || format('ghcr.io/{0}', github.repository) }}
     steps:
       - name: Wait for image available
         run: |
