@@ -61,6 +61,12 @@ jobs:
         run: |
           echo "Image built: ${{ vars.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}"
 
+      - name: Working directory check
+        run: pwd
+
+      - name: list files
+        run: ls -la
+
       - name: Copy docker-compose and deploy script to server
         uses: appleboy/scp-action@v0.1.6
         with:

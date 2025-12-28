@@ -1,8 +1,8 @@
 import { buildCacheKeyFromUrl } from "../lib/cache.js";
-import { logger } from "../lib/logger.js";
-import { errorResponse, jsonResponse } from "../lib/response.js";
-import { RedisClient } from "../lib/redisClient.js";
 import { CACHE_TTL_SECONDS } from "../lib/config.js";
+import { logger } from "../lib/logger.js";
+import { RedisClient } from "../lib/redisClient.js";
+import { errorResponse, jsonResponse } from "../lib/response.js";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const CACHE_INTERVAL_SECONDS = 30 * 24 * 60 * 60;
@@ -66,27 +66,6 @@ function ensureArray(v) {
     return [v];
   }
   return [v];
-}
-
-function rowToMovie(row, channelId) {
-  if (!row) {
-    return null;
-  }
-  return {
-    channelId: channelId ?? null,
-    movieId: row.tmdb_id,
-    title: row.title,
-    overview: row.overview,
-    releaseDate: row.release_date,
-    posterPath: row.poster_path,
-    genres: parseJsonArray(row.genres),
-    rating: row.rating ?? 0,
-    ratingCount: row.rating_count ?? 0,
-    directorName: row.director_name,
-    cast: parseJsonArray(row.cast_names),
-    castProfilePaths: parseJsonArray(row.cast_profile_paths),
-    updatedAt: row.updated_at,
-  };
 }
 
 function shouldRefresh(row) {
@@ -190,7 +169,12 @@ function mapTmdbToMovie(details, credits) {
     overview: details.overview,
     releaseDate: details.release_date,
     posterPath: details.poster_path,
-    genres: ensureArray((details.genres || []).map((genre) => genre.name)),
+    genres: ensureArray(
+      (details.genres || []).map((genre) => ({
+        id: genre.id ?? null,
+        name: genre.name ?? null,
+      }))
+    ),
     rating: details.vote_average,
     ratingCount: details.vote_count,
     directorName: director?.name ?? null,
