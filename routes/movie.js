@@ -1,4 +1,5 @@
 import { buildCacheKeyFromUrl, cacheGet, cacheSet } from "../lib/cache.js";
+import { logger } from "../lib/logger.js";
 import { errorResponse, jsonResponse } from "../lib/response.js";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -46,6 +47,23 @@ function parseJsonArray(value) {
   } catch {
     return [];
   }
+}
+
+function ensureArray(v) {
+  if (Array.isArray(v)) return v;
+  if (v == null) return [];
+  if (typeof v === "string") {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+      // fallthrough
+    }
+    // treat comma-separated string as list
+    if (v.indexOf(",") !== -1) return v.split(",").map((s) => s.trim());
+    return [v];
+  }
+  return [v];
 }
 
 function rowToMovie(row, channelId) {
@@ -114,7 +132,7 @@ async function cachePut(request, response, ctx) {
 
 export async function handleSearch(request, env, ctx) {
   const url = new URL(request.url);
-  console.log("request received: /v1/search", url.toString());
+  logger.info("request received: /v1/search", { url: url.toString() });
   const query = safeDecode(url.searchParams.get("query"));
   if (!query) {
     return errorResponse(400, "query is required");
@@ -123,14 +141,14 @@ export async function handleSearch(request, env, ctx) {
   try {
     const cached = await cacheGet(env, cacheKey);
     if (cached) {
-      console.log("redis -> responded (search)", {
+      logger.info("redis -> responded (search)", {
         key: cacheKey,
         url: url.toString(),
       });
       return jsonResponse(cached);
     }
   } catch (e) {
-    console.warn("redis get failed", e?.message ?? e);
+    logger.warn("redis get failed", e?.message ?? e);
   }
 
   const language = normalizeLanguage(url.searchParams.get("language"));
@@ -143,14 +161,14 @@ export async function handleSearch(request, env, ctx) {
     },
     env
   );
-  console.log("tmdb -> responded (search)", { query, language });
+  logger.info("tmdb -> responded (search)", { query, language });
   const response = jsonResponse(data);
   try {
     const ttl = Number(
       env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30
     );
     await cacheSet(env, cacheKey, data, ttl);
-    console.log("redis <- cached (search)", { key: cacheKey, ttl });
+    logger.info("redis <- cached (search)", { key: cacheKey, ttl });
   } catch (e) {
     console.warn("redis set failed", e?.message ?? e);
   }
@@ -198,45 +216,6 @@ async function upsertMovieByChannel(env, channelId, language, payload) {
     .run();
 }
 
-async function upsertMovieById(env, language, payload) {
-  const now = Math.floor(Date.now() / 1000);
-  const stmt = env.DB.prepare(
-    `INSERT INTO movies_by_id (
-      tmdb_id, language, title, overview, release_date, poster_path,
-      genres, rating, rating_count, director_name, cast_names, cast_profile_paths, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(tmdb_id, language) DO UPDATE SET
-      title = excluded.title,
-      overview = excluded.overview,
-      release_date = excluded.release_date,
-      poster_path = excluded.poster_path,
-      genres = excluded.genres,
-      rating = excluded.rating,
-      rating_count = excluded.rating_count,
-      director_name = excluded.director_name,
-      cast_names = excluded.cast_names,
-      cast_profile_paths = excluded.cast_profile_paths,
-      updated_at = excluded.updated_at`
-  );
-  await stmt
-    .bind(
-      payload.movieId,
-      language,
-      payload.title,
-      payload.overview,
-      payload.releaseDate,
-      payload.posterPath,
-      JSON.stringify(payload.genres || []),
-      payload.rating ?? 0,
-      payload.ratingCount ?? 0,
-      payload.directorName,
-      JSON.stringify(payload.cast || []),
-      JSON.stringify(payload.castProfilePaths || []),
-      now
-    )
-    .run();
-}
-
 function mapTmdbToMovie(details, credits) {
   const director = credits.crew?.find(
     (member) => String(member.job || "").toLowerCase() === "director"
@@ -251,12 +230,14 @@ function mapTmdbToMovie(details, credits) {
     overview: details.overview,
     releaseDate: details.release_date,
     posterPath: details.poster_path,
-    genres: (details.genres || []).map((genre) => genre.name),
+    genres: ensureArray((details.genres || []).map((genre) => genre.name)),
     rating: details.vote_average,
     ratingCount: details.vote_count,
     directorName: director?.name ?? null,
-    cast: castSorted.map((member) => member.name),
-    castProfilePaths: castSorted.map((member) => member.profile_path ?? null),
+    cast: ensureArray(castSorted.map((member) => member.name)),
+    castProfilePaths: ensureArray(
+      castSorted.map((member) => member.profile_path ?? null)
+    ),
   };
 }
 
@@ -284,7 +265,7 @@ export async function handleMovieLookup(request, env) {
     .bind(channelId, language)
     .first();
   if (cachedRow && !shouldRefresh(cachedRow)) {
-    console.log("db -> responded (lookup)", { channelId, language });
+    logger.info("db -> responded (lookup)", { channelId, language });
     return jsonResponse(rowToMovie(cachedRow, channelId));
   }
 
@@ -302,7 +283,7 @@ export async function handleMovieLookup(request, env) {
     },
     env
   );
-  console.log("tmdb -> search for lookup", {
+  logger.info("tmdb -> search for lookup", {
     strippedTitle,
     releaseYear,
     language,
@@ -318,19 +299,18 @@ export async function handleMovieLookup(request, env) {
   }
 
   await upsertMovieByChannel(env, channelId, language, moviePayload);
-  console.log("db <- upserted (lookup)", {
+  logger.info("db <- upserted (lookup)", {
     channelId,
     language,
     movieId: moviePayload.movieId,
   });
-  await upsertMovieById(env, language, moviePayload);
 
   return jsonResponse({ ...moviePayload, channelId });
 }
 
 export async function handleMovieById(request, env, ctx) {
   const url = new URL(request.url);
-  console.log("request received: /movies/{id}", url.toString());
+  logger.info("request received: /v1/movie/{id}", { url: url.toString() });
   const idPart = url.pathname.split("/").pop();
   const movieId = Number(idPart);
   if (!Number.isInteger(movieId)) {
@@ -338,32 +318,21 @@ export async function handleMovieById(request, env, ctx) {
   }
   const language = normalizeLanguage(url.searchParams.get("language"));
 
-  const cachedRow = await env.DB.prepare(
-    `SELECT * FROM movies_by_id WHERE tmdb_id = ? AND language = ? LIMIT 1`
-  )
-    .bind(movieId, language)
-    .first();
-  if (cachedRow && !shouldRefresh(cachedRow)) {
-    console.log("cache hit: movie d1", { movieId, language });
-    return jsonResponse(rowToMovie(cachedRow, null));
-  }
-
   const cacheKey = buildCacheKeyFromUrl(url);
   try {
     const cached = await cacheGet(env, cacheKey);
     if (cached) {
-      console.log("redis -> responded (movie)", {
+      logger.info("redis -> responded (movie)", {
         key: cacheKey,
         url: url.toString(),
       });
       return jsonResponse(cached);
     }
   } catch (e) {
-    console.warn("redis get failed", e?.message ?? e);
+    logger.warn("redis get failed", e?.message ?? e);
   }
 
   const moviePayload = await fetchMovieDetails(movieId, language, env);
-  await upsertMovieById(env, language, moviePayload);
 
   const response = jsonResponse(moviePayload);
   try {
@@ -371,9 +340,9 @@ export async function handleMovieById(request, env, ctx) {
       env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || 24 * 60 * 60 * 30
     );
     await cacheSet(env, cacheKey, moviePayload, ttl);
-    console.log("redis <- cached (movie)", { key: cacheKey, ttl });
+    logger.info("redis <- cached (movie)", { key: cacheKey, ttl });
   } catch (e) {
-    console.warn("redis set failed", e?.message ?? e);
+    logger.warn("redis set failed", e?.message ?? e);
   }
   return response;
 }

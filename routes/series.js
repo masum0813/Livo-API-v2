@@ -1,5 +1,6 @@
 import { cacheGet, cacheSet, buildCacheKeyFromUrl } from "../lib/cache.js";
 import { errorResponse, jsonResponse } from "../lib/response.js";
+import { logger } from "../lib/logger.js";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const CACHE_INTERVAL_SECONDS = 30 * 24 * 60 * 60;
@@ -498,7 +499,7 @@ export async function handleSeriesSearch(request, env) {
     return errorResponse(405, "method not allowed");
   }
   const url = new URL(request.url);
-  console.log("request received: /v1/series/search", url.toString());
+  logger.info("request received: /v1/series/search", { url: url.toString() });
   const query = url.searchParams.get("query");
   if (!query) {
     return errorResponse(400, "query is required");
@@ -521,11 +522,11 @@ export async function handleSeriesSearch(request, env) {
     ));
 
   if (cached) {
-    console.log("redis -> responded (series search)", { query, language });
+    logger.info("redis -> responded (series search)", { query, language });
   } else {
-    console.log("tmdb -> responded (series search)", { query, language });
+    logger.info("tmdb -> responded (series search)", { query, language });
     await cacheSearch(env, query, language, data);
-    console.log("redis <- cached (series search)", { query, language });
+    logger.info("redis <- cached (series search)", { query, language });
   }
 
   const results = Array.isArray(data.results) ? data.results : [];
@@ -552,7 +553,7 @@ export async function handleSeriesById(request, env) {
     return errorResponse(400, "invalid series id");
   }
   const language = normalizeLanguage(url.searchParams.get("language"));
-  console.log("request received: /v1/series/{id}", url.toString());
+  logger.info("request received: /v1/series/{id}", { url: url.toString() });
 
   const cachedRow = await env.DB.prepare(
     `SELECT * FROM series_by_id WHERE tmdb_id = ? AND language = ? LIMIT 1`
@@ -566,7 +567,7 @@ export async function handleSeriesById(request, env) {
   ) {
     const seasons = await readSeasons(env, seriesId, language);
     if (seasons.length > 0) {
-      console.log("db -> responded (series by id)", { seriesId, language });
+      logger.info("db -> responded (series by id)", { seriesId, language });
       return jsonResponse(rowToSeries(cachedRow, seasons));
     }
   }
@@ -575,11 +576,11 @@ export async function handleSeriesById(request, env) {
   try {
     const cached = await cacheGet(env, cacheKey);
     if (cached) {
-      console.log("redis -> responded (series by id)", { key: cacheKey });
+      logger.info("redis -> responded (series by id)", { key: cacheKey });
       return jsonResponse(cached);
     }
   } catch (e) {
-    console.warn("redis get failed", { key: cacheKey, err: e?.message ?? e });
+    logger.warn("redis get failed", { key: cacheKey, err: e?.message ?? e });
   }
 
   const data = await tmdbFetch(
@@ -595,9 +596,9 @@ export async function handleSeriesById(request, env) {
   try {
     const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS);
     await cacheSet(env, cacheKey, { ...payload, seasons: payload.seasons }, ttl);
-    console.log("redis <- cached (series by id)", { key: cacheKey, ttl });
+    logger.info("redis <- cached (series by id)", { key: cacheKey, ttl });
   } catch (e) {
-    console.warn("redis set failed", { key: cacheKey, err: e?.message ?? e });
+    logger.warn("redis set failed", { key: cacheKey, err: e?.message ?? e });
   }
 
   return jsonResponse({ ...payload, seasons: payload.seasons });
@@ -615,7 +616,7 @@ export async function handleSeriesSeason(request, env) {
     return errorResponse(400, "invalid series or season id");
   }
   const language = normalizeLanguage(url.searchParams.get("language"));
-  console.log("request received: /v1/series/{id}/season/{season}", url.toString());
+  logger.info("request received: /v1/series/{id}/season/{season}", { url: url.toString() });
 
   const cacheMeta = await getSeasonCacheMeta(
     env,
@@ -642,11 +643,11 @@ export async function handleSeriesSeason(request, env) {
   try {
     const cached = await cacheGet(env, cacheKey);
     if (cached) {
-      console.log("redis -> responded (series season)", { key: cacheKey });
+      logger.info("redis -> responded (series season)", { key: cacheKey });
       return jsonResponse(cached);
     }
   } catch (e) {
-    console.warn("redis get failed", { key: cacheKey, err: e?.message ?? e });
+    logger.warn("redis get failed", { key: cacheKey, err: e?.message ?? e });
   }
 
   const data = await tmdbFetch(
@@ -659,7 +660,7 @@ export async function handleSeriesSeason(request, env) {
   try {
     const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS);
     await cacheSet(env, cacheKey, episodes, ttl);
-    console.log("redis <- cached (series season)", { key: cacheKey, ttl });
+    logger.info("redis <- cached (series season)", { key: cacheKey, ttl });
   } catch (e) {
     console.warn("redis set failed", { key: cacheKey, err: e?.message ?? e });
   }
@@ -706,7 +707,7 @@ export async function handleSeriesEpisode(request, env) {
     return errorResponse(400, "invalid series, season, or episode");
   }
   const language = normalizeLanguage(url.searchParams.get("language"));
-  console.log("request received: /v1/series/{id}/season/{s}/episode/{e}", url.toString());
+  logger.info("request received: /v1/series/{id}/season/{s}/episode/{e}", { url: url.toString() });
 
   const cached = await readEpisode(
     env,
@@ -730,11 +731,11 @@ export async function handleSeriesEpisode(request, env) {
   try {
     const cached = await cacheGet(env, cacheKey);
     if (cached) {
-      console.log("redis -> responded (series episode)", { key: cacheKey });
+      logger.info("redis -> responded (series episode)", { key: cacheKey });
       return jsonResponse(cached);
     }
   } catch (e) {
-    console.warn("redis get failed", { key: cacheKey, err: e?.message ?? e });
+    logger.warn("redis get failed", { key: cacheKey, err: e?.message ?? e });
   }
 
   const data = await tmdbFetch(
@@ -748,9 +749,9 @@ export async function handleSeriesEpisode(request, env) {
   try {
     const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS);
     await cacheSet(env, cacheKey, payload, ttl);
-    console.log("redis <- cached (series episode)", { key: cacheKey, ttl });
+    logger.info("redis <- cached (series episode)", { key: cacheKey, ttl });
   } catch (e) {
-    console.warn("redis set failed", { key: cacheKey, err: e?.message ?? e });
+    logger.warn("redis set failed", { key: cacheKey, err: e?.message ?? e });
   }
   return jsonResponse(payload);
 }
