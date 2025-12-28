@@ -57,6 +57,9 @@ jobs:
     env:
       IMAGE_NAME: ${{ vars.IMAGE_NAME || format('ghcr.io/{0}', github.repository) }}
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Wait for image available
         run: |
           echo "Image built: ${{ vars.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.run_number }}"
@@ -66,6 +69,11 @@ jobs:
 
       - name: list files
         run: ls -la
+
+      - name: Check deployment files exist
+        run: |
+          test -f docker-compose.yml
+          test -f scripts/deploy.sh
 
       - name: Copy docker-compose and deploy script to server
         uses: appleboy/scp-action@v0.1.6

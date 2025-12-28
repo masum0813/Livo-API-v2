@@ -164,7 +164,7 @@ function mapTmdbToMovie(details, credits) {
     .sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999))
     .slice(0, MAX_CAST);
   return {
-    movieId: details.id,
+    id: details.id,
     title: details.title,
     overview: details.overview,
     releaseDate: details.release_date,
