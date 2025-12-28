@@ -17,7 +17,26 @@ services:
       - ./data:/app/data
     depends_on:
       - redis
-    command: ["/bin/sh","-c","echo 'Waiting for redis...'; while ! bash -c 'cat < /dev/tcp/redis/6379' >/dev/null 2>&1; do sleep 1; done; echo 'Redis reachable, starting app'; npm start"]
+    # Wait for Redis using REDIS_URL env (supports redis://user:pass@host:port/path)
+    # Parse host/port from REDIS_URL and wait for TCP availability, then start the app.
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        REDIS_URL="$${REDIS_URL:-redis://redis:6379}"
+        # strip scheme
+        u=$${REDIS_URL#*://}
+        # drop user:pass@ if present
+        if [[ "$$u" == *"@"* ]]; then u=$${u#*@}; fi
+        # remove path
+        hostport=$${u%%/*}
+        host=$${hostport%%:*}
+        port=$${hostport#*:}
+        if [ "$$port" = "$$host" ] || [ -z "$$port" ]; then port=6379; fi
+        echo "Waiting for redis at $$host:$$port (from $$REDIS_URL)"
+        until bash -c "cat < /dev/tcp/$$host/$$port" >/dev/null 2>&1; do sleep 1; done
+        echo "Redis reachable at $$host:$$port, starting app"
+        exec npm start
     restart: unless-stopped
     networks:
       - livoplayer_net
