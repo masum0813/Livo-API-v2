@@ -28,6 +28,9 @@ fi
 
 # If image is private, ensure the server has already logged into the registry (docker login ghcr.io)
 # Pull the specific image tag, then restart the compose stack
+# export GHCR_USER=your-github-username
+# export GHCR_TOKEN=ghp_...your_token...
+# echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 echo "Pulling image $IMAGE:$TAG"
 docker pull "$IMAGE:$TAG"
 

@@ -87,7 +87,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /${{ secrets.SSH_USER }}/works/api
-            ls -lah
             chmod +x ./scripts/deploy.sh
             # Call deploy script with IMAGE and TAG (tag includes build number)
-            ./scripts/deploy.sh "${{ env.IMAGE_NAME }}" "${{ github.ref_name }}-${{ github.run_number }}" /${{ secrets.SSH_USER }}/works/api/docker-compose.yml
+            ./scripts/deploy.sh "ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" "${{ github.ref_name }}-${{ github.run_number }}" /${{ secrets.SSH_USER }}/works/api
