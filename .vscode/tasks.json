@@ -1,0 +1,67 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm: start",
+      "type": "shell",
+      "command": "/opt/homebrew/bin/npm start",
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Run npm start (node server.js) using Homebrew npm"
+    },
+    {
+      "label": "prepare",
+      "type": "shell",
+      "command": "/opt/homebrew/bin/npm install && /opt/homebrew/bin/npm rebuild",
+      "options": {
+        "env": {
+          "PATH": "/opt/homebrew/bin:${env:PATH}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "disable-redis-compose",
+      "type": "shell",
+      "command": "bash ./scripts/disable_redis_compose.sh",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "restore-compose",
+      "type": "shell",
+      "command": "bash ./scripts/restore_docker_compose.sh",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Redis Docker Compose up",
+      "type": "shell",
+      "command": "/usr/local/bin/docker compose up -d redis",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Redis Docker Compose Down",
+      "type": "shell",
+      "command": "/usr/local/bin/docker compose down",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "pre-debug",
+      "dependsOn": ["Redis Docker Compose up", "prepare"],
+      "runOptions": { "runOn": "default" }
+    },
+    {
+      "label": "post-debug",
+      "dependsOn": ["Redis Docker Compose Down"],
+      "runOptions": { "runOn": "default" }
+    }
+  ]
+}

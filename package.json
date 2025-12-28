@@ -1,0 +1,19 @@
+{
+  "name": "tmdb-api-server",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "devrules": "node /private/var/folders/jb/5r_f1tv12yg07gd51_7fw53w0000gn/T/devrules-SCyK2k/DevRules-main/tools/apply-rules.mjs --repo .",
+    "devrules:force": "node /private/var/folders/jb/5r_f1tv12yg07gd51_7fw53w0000gn/T/devrules-SCyK2k/DevRules-main/tools/apply-rules.mjs --repo . --force",
+    "devrules:dry": "node /private/var/folders/jb/5r_f1tv12yg07gd51_7fw53w0000gn/T/devrules-SCyK2k/DevRules-main/tools/apply-rules.mjs --repo . --dry-run"
+  },
+  "dependencies": {
+    "ioredis": "^5.3.4",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0"
+  }
+}

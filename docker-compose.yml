@@ -1,0 +1,41 @@
+services:
+  api:
+    container_name: api
+    image: tmdb-api-server
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - TMDB_API_KEY
+      - STREAM_SIGNING_SECRET
+      - STREAM_PROXY_BASE
+      - FORWARD_HEADERS
+      - REDIS_URL=redis://redis:6379
+      - TMDB_CACHE_SECONDS=2592000
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+    command: ["/bin/sh","-c","echo 'Waiting for redis...'; while ! bash -c 'cat < /dev/tcp/redis/6379' >/dev/null 2>&1; do sleep 1; done; echo 'Redis reachable, starting app'; npm start"]
+    restart: unless-stopped
+    networks:
+      - livoplayer_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: livo_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - livoplayer_net
+
+networks:
+  livoplayer_net:
+    external: true
+
+volumes:
+  redis_data:
+    driver: local
