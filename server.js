@@ -139,11 +139,17 @@ app.use(async (req, res) => {
       response = withCors(await handleSearch(request, env, ctx));
     } else if (url.pathname === "/v1/movie/lookup") {
       response = withCors(await handleMovieLookup(request, env));
+    } else if (url.pathname === "/v1/movie") {
+      // Support requests like /v1/movie?title=...&channelId=...
+      response = withCors(await handleMovieLookup(request, env));
     } else if (url.pathname.startsWith("/v1/movie/")) {
       response = withCors(await handleMovieById(request, env, ctx));
     } else if (url.pathname === "/v1/stream-url") {
       response = withCors(await handleStreamUrl(request, env));
     } else if (url.pathname === "/v1/series/search") {
+      response = withCors(await handleSeriesSearch(request, env));
+    } else if (url.pathname === "/v1/series" || url.pathname === "/v1/series/") {
+      // Support requests like /v1/series?title=...&channelId=...
       response = withCors(await handleSeriesSearch(request, env));
     } else if (url.pathname.match(/^\/v1\/series\/\d+\/season\/\d+\/episode\/\d+$/)) {
       response = withCors(await handleSeriesEpisode(request, env));
