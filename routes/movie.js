@@ -146,32 +146,38 @@ function mapTmdbToMovie(details, credits) {
   const directorsList = (credits.crew || [])
     .filter((member) => String(member.job || "").toLowerCase() === "director")
     .map((member) => ({ name: member.name ?? null, job: member.job ?? null }));
+
   const castSorted = (credits.cast || [])
     .slice()
     .sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999))
     .slice(0, MAX_CAST);
+
   return {
-    id: details.id,
-    title: details.title,
-    overview: details.overview,
-    releaseDate: details.release_date,
-    posterPath: details.poster_path,
-    genres: ensureArray(
-      (details.genres || []).map((genre) => ({
-        id: genre.id ?? null,
-        name: genre.name ?? null,
-      }))
-    ),
-    voteAverage: details.vote_average,
-    voteCount: details.vote_count,
-    crew: ensureArray(directorsList),
-    cast: ensureArray(
-      castSorted.map((member) => ({
-        name: member.name,
-        order: typeof member.order === "number" ? member.order : null,
-        profilePath: member.profile_path ?? null,
-      }))
-    ),
+    detail: {
+      id: details.id,
+      title: details.title,
+      overview: details.overview,
+      releaseDate: details.release_date,
+      posterPath: details.poster_path,
+      genres: ensureArray(
+        (details.genres || []).map((genre) => ({
+          id: genre.id ?? null,
+          name: genre.name ?? null,
+        }))
+      ),
+      voteAverage: details.vote_average,
+      voteCount: details.vote_count,
+    },
+    credits: {
+      crew: ensureArray(directorsList),
+      cast: ensureArray(
+        castSorted.map((member) => ({
+          name: member.name,
+          order: typeof member.order === "number" ? member.order : null,
+          profilePath: member.profile_path ?? null,
+        }))
+      ),
+    },
   };
 }
 
@@ -233,9 +239,6 @@ export async function handleMovieLookup(request, env) {
   }
 
   const moviePayload = await fetchMovieDetails(first.id, language, env);
-  if (!moviePayload.title) {
-    moviePayload.title = first.title || strippedTitle;
-  }
 
   try {
     const ttl = CACHE_TTL_SECONDS;

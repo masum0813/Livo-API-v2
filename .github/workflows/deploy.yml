@@ -86,7 +86,6 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            set -euo pipefail
             cd /${{ secrets.SSH_USER }}/works/api
             ls -lah
             chmod +x ./scripts/deploy.sh

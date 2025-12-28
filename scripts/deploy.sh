@@ -1,6 +1,6 @@
-echo "Pulling image $IMAGE:$TAG"
 #!/usr/bin/env bash
-set -euo pipefail
+
+echo "Pulling image $IMAGE:$TAG"
 
 IMAGE=${1:-}
 TAG=${2:-}
