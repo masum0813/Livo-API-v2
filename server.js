@@ -17,6 +17,7 @@ import {
 } from "./routes/series.js";
 import { handleStreamUrl } from "./routes/stream.js";
 import { handleTmdbProxy } from "./routes/tmdb_proxy.js";
+import { handleMetadata } from "./routes/metadata.js";
 
 dotenv.config();
 
@@ -152,6 +153,8 @@ app.use(async (req, res) => {
       response = withCors(await handleMovieById(request, env));
     } else if (url.pathname === "/v1/stream-url") {
       response = withCors(await handleStreamUrl(request, env));
+    } else if (url.pathname === "/v1/metadata") {
+      response = withCors(await handleMetadata(request, env));
     } else if (url.pathname === "/v1/series/search") {
       response = withCors(await handleSeriesSearch(request, env));
     } else if (

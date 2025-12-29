@@ -3,7 +3,10 @@ WORKDIR /app
 
 # Install production dependencies (no native build deps required for Redis client)
 COPY package.json package-lock.json* ./
-RUN npm install --production
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ffmpeg \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& npm install --production
 
 COPY . .
 
