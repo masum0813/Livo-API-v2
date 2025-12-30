@@ -1,6 +1,6 @@
-import { cacheGet, cacheSet, buildCacheKeyFromUrl } from "../lib/cache.js";
-import { errorResponse, jsonResponse } from "../lib/response.js";
+import { buildCacheKeyFromUrl, cacheGet, cacheSet } from "../lib/cache.js";
 import { logger } from "../lib/logger.js";
+import { errorResponse, jsonResponse } from "../lib/response.js";
 
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const CACHE_INTERVAL_SECONDS = 30 * 24 * 60 * 60;
@@ -34,7 +34,7 @@ function rowToSeries(row, seasons) {
     created_by: parseJsonArray(row.created_by),
     number_of_episodes: row.number_of_episodes ?? 0,
     number_of_seasons: row.number_of_seasons ?? 0,
-    poster_path: row.poster_path,
+    posterPath: row.poster_path,
     first_air_date: row.first_air_date,
     name: row.name,
     vote_average: row.vote_average ?? 0,
@@ -53,7 +53,7 @@ function buildSeriesPayload(details, genreIds) {
     created_by: Array.isArray(details.created_by) ? details.created_by : [],
     number_of_episodes: details.number_of_episodes,
     number_of_seasons: details.number_of_seasons,
-    poster_path: details.poster_path,
+    posterPath: details.poster_path,
     first_air_date: details.first_air_date,
     name: details.name,
     vote_average: details.vote_average,
@@ -69,7 +69,7 @@ function buildSeriesPayloadFromSearch(item) {
     original_language: item.original_language,
     overview: item.overview,
     original_name: item.original_name,
-    poster_path: item.poster_path,
+    posterPath: item.poster_path,
     first_air_date: item.first_air_date,
     name: item.name,
     vote_average: item.vote_average,
@@ -134,54 +134,6 @@ async function tmdbFetch(path, query, env) {
   return response.json();
 }
 
-async function upsertSeries(env, language, item) {
-  // If the project has migrated off SQLite, `env.DB` may be undefined.
-  // In that case, skip the DB upsert to avoid runtime errors.
-  if (!env || !env.DB || typeof env.DB.prepare !== "function") {
-    return;
-  }
-  const now = Math.floor(Date.now() / 1000);
-  await env.DB.prepare(
-    `INSERT INTO series_by_id (
-      tmdb_id, language, genre_ids, original_language, overview, original_name,
-      created_by, number_of_episodes, number_of_seasons, poster_path, first_air_date,
-      name, vote_average, vote_count, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT DO UPDATE SET
-      genre_ids = excluded.genre_ids,
-      original_language = excluded.original_language,
-      overview = excluded.overview,
-      original_name = excluded.original_name,
-      created_by = excluded.created_by,
-      number_of_episodes = excluded.number_of_episodes,
-      number_of_seasons = excluded.number_of_seasons,
-      poster_path = excluded.poster_path,
-      first_air_date = excluded.first_air_date,
-      name = excluded.name,
-      vote_average = excluded.vote_average,
-      vote_count = excluded.vote_count,
-      updated_at = excluded.updated_at`
-  )
-    .bind(
-      item.id,
-      language,
-      JSON.stringify(item.genre_ids || []),
-      item.original_language,
-      item.overview,
-      item.original_name,
-      JSON.stringify(item.created_by || []),
-      item.number_of_episodes ?? 0,
-      item.number_of_seasons ?? 0,
-      item.poster_path,
-      item.first_air_date,
-      item.name,
-      item.vote_average ?? 0,
-      item.vote_count ?? 0,
-      now
-    )
-    .run();
-}
-
 async function upsertSeasons(env, seriesId, language, seasons) {
   const now = Math.floor(Date.now() / 1000);
   if (!Array.isArray(seasons)) {
@@ -191,48 +143,7 @@ async function upsertSeasons(env, seriesId, language, seasons) {
     if (!season || typeof season.id !== "number") {
       continue;
     }
-    await env.DB.prepare(
-      `INSERT INTO series_seasons (
-        series_id, language, season_id, season_number, name, overview, poster_path,
-        air_date, episode_count, vote_average, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT DO UPDATE SET
-        season_number = excluded.season_number,
-        name = excluded.name,
-        overview = excluded.overview,
-        poster_path = excluded.poster_path,
-        air_date = excluded.air_date,
-        episode_count = excluded.episode_count,
-        vote_average = excluded.vote_average,
-        updated_at = excluded.updated_at`
-    )
-      .bind(
-        seriesId,
-        language,
-        season.id,
-        season.season_number,
-        season.name,
-        season.overview,
-        season.poster_path,
-        season.air_date,
-        season.episode_count,
-        season.vote_average ?? 0,
-        now
-      )
-      .run();
   }
-}
-
-async function readSeasons(env, seriesId, language) {
-  const result = await env.DB.prepare(
-    `SELECT season_id as id, season_number, name, overview, poster_path, air_date,
-            episode_count, vote_average
-     FROM series_seasons WHERE series_id = ? AND language = ?
-     ORDER BY season_number ASC`
-  )
-    .bind(seriesId, language)
-    .all();
-  return result.results || [];
 }
 
 async function getSeasonCacheMeta(env, seriesId, seasonNumber, language) {
@@ -590,12 +501,17 @@ export async function handleSeriesById(request, env) {
   );
   const genreIds = extractGenreIdsFromDetails(data);
   const payload = buildSeriesPayload(data, genreIds);
-  await upsertSeries(env, language, payload);
-  await upsertSeasons(env, seriesId, language, payload.seasons);
 
   try {
-    const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS);
-    await cacheSet(env, cacheKey, { ...payload, seasons: payload.seasons }, ttl);
+    const ttl = Number(
+      env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS
+    );
+    await cacheSet(
+      env,
+      cacheKey,
+      { ...payload, seasons: payload.seasons },
+      ttl
+    );
     logger.info("redis <- cached (series by id)", { key: cacheKey, ttl });
   } catch (e) {
     logger.warn("redis set failed", { key: cacheKey, err: e?.message ?? e });
@@ -616,7 +532,9 @@ export async function handleSeriesSeason(request, env) {
     return errorResponse(400, "invalid series or season id");
   }
   const language = normalizeLanguage(url.searchParams.get("language"));
-  logger.info("request received: /v1/series/{id}/season/{season}", { url: url.toString() });
+  logger.info("request received: /v1/series/{id}/season/{season}", {
+    url: url.toString(),
+  });
 
   const cacheMeta = await getSeasonCacheMeta(
     env,
@@ -658,7 +576,9 @@ export async function handleSeriesSeason(request, env) {
   const episodes = Array.isArray(data.episodes) ? data.episodes : [];
   await upsertSeasonEpisodes(env, seriesId, seasonNumber, language, episodes);
   try {
-    const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS);
+    const ttl = Number(
+      env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS
+    );
     await cacheSet(env, cacheKey, episodes, ttl);
     logger.info("redis <- cached (series season)", { key: cacheKey, ttl });
   } catch (e) {
@@ -707,7 +627,9 @@ export async function handleSeriesEpisode(request, env) {
     return errorResponse(400, "invalid series, season, or episode");
   }
   const language = normalizeLanguage(url.searchParams.get("language"));
-  logger.info("request received: /v1/series/{id}/season/{s}/episode/{e}", { url: url.toString() });
+  logger.info("request received: /v1/series/{id}/season/{s}/episode/{e}", {
+    url: url.toString(),
+  });
 
   const cached = await readEpisode(
     env,
@@ -747,7 +669,9 @@ export async function handleSeriesEpisode(request, env) {
   await upsertSeasonEpisodes(env, seriesId, seasonNumber, language, [data]);
 
   try {
-    const ttl = Number(env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS);
+    const ttl = Number(
+      env.TMDB_CACHE_SECONDS || env.REDIS_CACHE_TTL || CACHE_INTERVAL_SECONDS
+    );
     await cacheSet(env, cacheKey, payload, ttl);
     logger.info("redis <- cached (series episode)", { key: cacheKey, ttl });
   } catch (e) {
